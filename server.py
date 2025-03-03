@@ -73,7 +73,7 @@ def main():
     sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
     sock.bind((LISTEN_IP, 1))
     
-    print("[+] ICMP Beacon Server Started")
+    print("[+] C2 Server Started")
     print("[+] Listening for connections...")
     print("[+] Type 'help' for available commands")
     
@@ -137,7 +137,7 @@ def main():
         
         # Check if the user entered a command
         if sys.stdin in ready:
-            command = input("beacon> ").strip()
+            command = input("c2> ").strip()
             
             if not command:
                 continue
