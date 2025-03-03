@@ -14,12 +14,14 @@ clients = {}
 current_client = None
 
 def parse_icmp_packet(packet):
+    """Extracts the identifier, sequence number and payload from ICMP packet"""
     icmp_header = packet[20:28]
     _type, _code, _checksum, identifier, seq = struct.unpack("!BBHHH", icmp_header)
     payload = packet[28:].decode("utf-8", errors="ignore").strip()
     return identifier, seq, payload
 
 def create_icmp_reply(identifier, seq, message):
+    """Create an ICMP Echo Reply packet with embedded command"""
     icmp_type = ICMP_ECHO_REPLY
     checksum_placeholder = 0
     header = struct.pack("!BBHHH", icmp_type, ICMP_CODE, checksum_placeholder, identifier, seq)
@@ -30,6 +32,7 @@ def create_icmp_reply(identifier, seq, message):
     return header + data
 
 def checksum(data):
+    """Calculate ICMP checksum for packet validity"""
     if len(data) % 2:
         data += b"\x00"
     checksum = 0
@@ -64,6 +67,7 @@ def help_menu():
     print("=========================\n")
 
 def main():
+    """Main server functionality"""
     global current_client
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
@@ -147,7 +151,8 @@ def main():
                 
             elif command.lower() == "clients":
                 display_clients()
-                
+
+            # changes targeted client to the inputted ID
             elif command.lower().startswith("target "):
                 try:
                     new_target = int(command.split()[1])
