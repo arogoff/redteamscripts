@@ -1,7 +1,10 @@
 # redteamscripts - Cyber Defense Techniques
 
+Author: Me :)
+Made for CSEC-473 Cyber Defense Techniques's Red Team Tool
+
 ## To set up
-Follow these steps to set up the C2. Ultimately it should work in any order, but I have tested it this way
+Follow these steps to set up the C2. Ultimately, it should work in any order, but I have tested it this way
 1. Start the server script
 2. Start the client script
 
