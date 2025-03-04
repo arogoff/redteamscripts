@@ -5,8 +5,10 @@ Made for CSEC-473 Cyber Defense Techniques's Red Team Tool
 
 ## To set up
 Follow these steps to set up the C2. Ultimately, it should work in any order, but I have tested it this way
-1. Start the server script
-2. Start the client script
+1. Adjust the client script's variable that stores the Server's IP address to the IP address of the linux machine your server is running on.
+2. Start the server script on a separate linux machine
+3. Start a listener on port 4444 on the server. `nc -lvnp 4444`
+4. Start the client script on a separate linux machine
 
 Note: If the server isn't set up, then the client should still be able to run. It will just recieve a regular ICMP Echo Response from the server's machine if it is reachable. Currently, if the client is unable to send ping requests it will ~~error out and stop the script. I will probably fix this and have it keep attempting to ping or figure something out so the script remains active.~~ continue attempting to ping.
 
