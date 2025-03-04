@@ -5,14 +5,14 @@ Follow these steps to set up the C2. Ultimately it should work in any order, but
 1. Start the server script
 2. Start the client script
 
-Note: If the server isn't set up, then the client should still be able to run. It will just recieve a regular ICMP Echo Response from the server's machine if it is reachable. Currently, if the client is unable to send ping requests it will error out and stop the script. I will probably fix this and have it keep attempting to ping or figure something out so the script remains active.
+Note: If the server isn't set up, then the client should still be able to run. It will just recieve a regular ICMP Echo Response from the server's machine if it is reachable. Currently, if the client is unable to send ping requests it will ~~error out and stop the script. I will probably fix this and have it keep attempting to ping or figure something out so the script remains active.~~ continue attempting to ping.
 
 ## C2 Client (client.py)
 ### Purpose
 This script creates a persistent backdoor on a target system. It communicates with the attacker's machine by using ICMP packets, to avoid detection. Depending on the commands recieved by the attacker's machine, it can execute shell commands, or spawn a reverse shell as a separate process. 
 
 #### Persistence Mechanisms
-1. Creates a copy of itself to a location on the target system, `/tmp/.hidden_icmp_client` (i will probably rename this to something more obscure soon)
+1. Creates a copy of itself to a location on the target system, ~~`/tmp/.hidden_icmp_client` (i will probably rename this to something more obscure soon)~~ `/tmp/.sysd`.
 2. Creates an entry in crontab to restart on system reboot
 
 ## C2 Server (server.py)
