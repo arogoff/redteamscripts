@@ -12,6 +12,83 @@ Follow these steps to set up the C2. Ultimately, it should work in any order, bu
 
 Note: If the server isn't set up, then the client should still be able to run. It will just recieve a regular ICMP Echo Response from the server's machine if it is reachable. Currently, if the client is unable to send ping requests it will ~~error out and stop the script. I will probably fix this and have it keep attempting to ping or figure something out so the script remains active.~~ continue attempting to ping.
 
+## Deploy (deploy.sh)
+### Purpose
+
+This script automates the deployment of software across multiple target machines simultaneously. It handles SSH key setup, repository cloning, and script execution in parallel to maximize efficiency.
+
+### Features
+
+- **Parallel Execution**: Sets up and deploys to multiple machines simultaneously
+- **Automatic Authentication**: Transitions from password-based to SSH key authentication
+- **Passwordless Configuration**: Sets up sudo access without password prompts
+- **Detailed Logging**: Creates individual log files for monitoring each machine
+- **Error Capture**: Logs all errors during the deployment process
+
+### Prerequisites
+
+- Bash shell environment
+- `expect` tool (automatically installed if missing)
+- SSH client
+- Internet access for package installation and git operations
+
+### Configuration
+
+Edit these variables at the top of the script:
+
+```bash
+# Target machines with credentials (username:password@ip_address)
+MACHINES=(
+    "username:password@10.10.1.2"
+    # Add more machines as needed
+)
+
+# Repository to clone on target machines
+REPO_URL="https://github.com/username/repository.git"
+
+# Script to execute from the repository
+SCRIPT_PATH="run.sh"
+```
+
+### How It Works
+
+1. **SSH Key Setup Phase**:
+   - Generates ED25519 SSH key pair if needed
+   - Copies public key to all target machines
+   - Installs git, python3, and other dependencies
+   - Configures passwordless sudo access
+
+2. **Deployment Phase**:
+   - Connects using SSH key authentication
+   - Updates system packages
+   - Clones/updates the specified repository
+   - Executes the deployment script with sudo
+
+### Usage
+
+```bash
+# Make executable
+chmod +x deploy.sh
+
+# Run deployment
+./deploy.sh
+```
+
+### Monitoring
+
+The script generates two types of log files:
+- `setup_log_<ip>.txt`: SSH key setup logs
+- `log_<ip>.txt`: Deployment execution logs
+
+### Performance
+
+Typical execution time is approximately 50 seconds, scaling with the number of target machines and network conditions.
+
+### Notes
+
+- Ensure passwords are correctly formatted if they contain special characters like `@`
+- The script handles password updates gracefully after SSH keys are established
+
 ## C2 Client (client.py)
 ### Purpose
 This script creates a persistent backdoor on a target system. It communicates with the attacker's machine by using ICMP packets, to avoid detection. Depending on the commands recieved by the attacker's machine, it can execute shell commands, or spawn a reverse shell as a separate process. 
