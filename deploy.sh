@@ -48,11 +48,13 @@ spawn ssh -o StrictHostKeyChecking=no $user_host
 expect "password:"
 send "$password\r"
 expect "\\\$"
-send "echo '$password' | sudo -S apt-get update -y\r"
-expect "\\\$"
-send "echo '$password' | sudo -S apt-get install -y git python3 python3-pip\r"
-expect "\\\$"
+# Set up passwordless sudo first
 send "echo '$password' | sudo -S bash -c 'echo \"$username ALL=(ALL) NOPASSWD: ALL\" > /etc/sudoers.d/$username && chmod 440 /etc/sudoers.d/$username'\r"
+expect "\\\$"
+# Now use sudo for package management
+send "sudo apt-get update -y\r"
+expect "\\\$"
+send "sudo apt-get install -y git python3 python3-pip\r"
 expect "\\\$"
 send "exit\r"
 expect eof
