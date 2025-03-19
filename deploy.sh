@@ -13,6 +13,20 @@ MACHINES=(
     "VChloras:B3tray3r_Gods@10.10.4.3"
 )
 
+# Set up timing log file
+TIMING_LOG="deployment_timing.log"
+echo "Deployment Timing Log - $(date)" > $TIMING_LOG
+
+# Function to log timing
+log_timing() {
+    local section=$1
+    local start_time=$2
+    local end_time=$3
+    local duration=$((end_time - start_time))
+    echo "$(date +'%Y-%m-%d %H:%M:%S') - $section completed in ${duration} seconds" >> $TIMING_LOG
+    echo "Completed $section in ${duration} seconds"
+}
+
 # Repository URL 
 REPO_URL="https://github.com/arogoff/cdt-comp2.git"
 
@@ -25,6 +39,7 @@ SSH_KEY_PUB="$HOME/.ssh/id_ed25519.pub"
 
 # Function to set up SSH keys for a single machine
 setup_ssh_key_for_machine() {
+    local machine_start_time=$(date +%s)
     # Parse the machine string
     local machine=$1
     local username=$(echo $machine | grep -o '^[^:]*')
@@ -68,15 +83,22 @@ EOL
     # Clean up
     rm "$expect_script"
     
-    echo "SSH key setup completed for $user_host"
+    local machine_end_time=$(date +%s)
+    echo "SSH key setup completed for $user_host in $((machine_end_time - machine_start_time)) seconds" >> $TIMING_LOG
+    echo "SSH key setup completed for $user_host in $((machine_end_time - machine_start_time)) seconds"
 }
 
 # Function to set up SSH keys in parallel
 setup_ssh_keys_parallel() {
+    local ssh_key_start_time=$(date +%s)
+    
     # Generate SSH key if it doesn't exist - USING ED25519 FOR FASTER GENERATION
     if [ ! -f "$SSH_KEY" ]; then
+        local key_gen_start=$(date +%s)
         echo "Generating new SSH key pair using Ed25519 (faster)..."
         ssh-keygen -t ed25519 -f "$SSH_KEY" -N ""
+        local key_gen_end=$(date +%s)
+        log_timing "SSH key generation" $key_gen_start $key_gen_end
     else
         echo "SSH key already exists at $SSH_KEY"
     fi
@@ -96,14 +118,20 @@ setup_ssh_keys_parallel() {
         wait $pid
     done
     
-    echo "All SSH key setups completed!"
+    local ssh_key_end_time=$(date +%s)
+    log_timing "SSH key setup (total)" $ssh_key_start_time $ssh_key_end_time
 }
 
 # Function to run the setup on each machine using SSH keys
 run_deployment() {
+    local deploy_start_time=$(date +%s)
+    
     echo "Starting deployment on all machines..."
     
     local pids=()
+    local machine_start_times=()
+    local machine_ips=()
+    
     for machine in "${MACHINES[@]}"; do
         # Parse the machine string
         local username=$(echo $machine | cut -d':' -f1)
@@ -111,14 +139,23 @@ run_deployment() {
         local user_host="$username@$ip"
         
         echo "Starting deployment for $user_host..."
+        local machine_start=$(date +%s)
+        machine_start_times+=($machine_start)
+        machine_ips+=($ip)
         
         # Use SSH with key-based authentication
         ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$user_host" << EOF > "log_${ip}.txt" 2>&1 &
             echo "[$ip] Updating and installing packages..."
+            start_time=\$(date +%s)
             
             # Ensure packages are installed
             sudo apt-get update -y
+            pkg_update_time=\$(date +%s)
+            echo "Package update completed in \$((pkg_update_time - start_time)) seconds" >> "timing_${ip}.log"
+            
             sudo apt-get install -y git python3 python3-pip
+            pkg_install_time=\$(date +%s)
+            echo "Package installation completed in \$((pkg_install_time - pkg_update_time)) seconds" >> "timing_${ip}.log"
             
             echo "[$ip] Cloning repository..."
             if [ ! -d "cdt-comp2" ]; then
@@ -126,13 +163,21 @@ run_deployment() {
             else
                 cd cdt-comp2 && git pull && cd ..
             fi
+            git_clone_time=\$(date +%s)
+            echo "Git clone completed in \$((git_clone_time - pkg_install_time)) seconds" >> "timing_${ip}.log"
             
             echo "[$ip] Running script with sudo..."
             cd cdt-comp2
             chmod +x "$SCRIPT_PATH"
             sudo ./"$SCRIPT_PATH"
+            script_run_time=\$(date +%s)
+            echo "Script execution completed in \$((script_run_time - git_clone_time)) seconds" >> "timing_${ip}.log"
             
             echo "[$ip] Setup completed"
+            echo "Total deployment time: \$((script_run_time - start_time)) seconds" >> "timing_${ip}.log"
+            
+            # Copy timing log back to main server
+            cat "timing_${ip}.log" >> /tmp/timing.log
 EOF
         
         pids+=($!)
@@ -144,20 +189,31 @@ EOF
     
     # Wait for all background processes to complete
     echo "Waiting for all machines to complete setup..."
-    for pid in "${pids[@]}"; do
-        wait $pid
+    for i in "${!pids[@]}"; do
+        wait ${pids[$i]}
+        local machine_end=$(date +%s)
+        local machine_duration=$((machine_end - machine_start_times[$i]))
+        echo "Deployment for ${machine_ips[$i]} completed in ${machine_duration} seconds" >> $TIMING_LOG
     done
+    
+    local deploy_end_time=$(date +%s)
+    log_timing "Deployment (total)" $deploy_start_time $deploy_end_time
+    
     echo "All machines have completed their setup processes!"
 }
 
 # Main script
+main_start_time=$(date +%s)
 echo "Starting automated SSH setup and deployment process..."
 
 # Check if expect is installed (needed for initial setup only)
 if ! command -v expect &> /dev/null; then
+    local expect_install_start=$(date +%s)
     echo "Installing expect for initial setup..."
     sudo apt-get update -y
     sudo apt-get install -y expect
+    local expect_install_end=$(date +%s)
+    log_timing "Expect installation" $expect_install_start $expect_install_end
 fi
 
 # Setup SSH keys and passwordless sudo in parallel
@@ -166,4 +222,13 @@ setup_ssh_keys_parallel
 # Run deployment using SSH keys in parallel
 run_deployment
 
+main_end_time=$(date +%s)
+log_timing "ENTIRE PROCESS" $main_start_time $main_end_time
+
 echo "Full automation process completed!"
+echo "Timing summary saved to $TIMING_LOG"
+
+# Display timing summary
+echo "========== TIMING SUMMARY =========="
+cat $TIMING_LOG
+echo "==================================="
