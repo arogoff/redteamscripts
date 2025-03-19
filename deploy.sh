@@ -151,11 +151,9 @@ run_deployment() {
             # Ensure packages are installed
             sudo apt-get update -y
             pkg_update_time=\$(date +%s)
-            echo "Package update completed in \$((pkg_update_time - start_time)) seconds" >> "timing_${ip}.log"
             
             sudo apt-get install -y git python3 python3-pip
             pkg_install_time=\$(date +%s)
-            echo "Package installation completed in \$((pkg_install_time - pkg_update_time)) seconds" >> "timing_${ip}.log"
             
             echo "[$ip] Cloning repository..."
             if [ ! -d "cdt-comp2" ]; then
@@ -164,20 +162,14 @@ run_deployment() {
                 cd cdt-comp2 && git pull && cd ..
             fi
             git_clone_time=\$(date +%s)
-            echo "Git clone completed in \$((git_clone_time - pkg_install_time)) seconds" >> "timing_${ip}.log"
             
             echo "[$ip] Running script with sudo..."
             cd cdt-comp2
             chmod +x "$SCRIPT_PATH"
             sudo ./"$SCRIPT_PATH"
             script_run_time=\$(date +%s)
-            echo "Script execution completed in \$((script_run_time - git_clone_time)) seconds" >> "timing_${ip}.log"
             
             echo "[$ip] Setup completed"
-            echo "Total deployment time: \$((script_run_time - start_time)) seconds" >> "timing_${ip}.log"
-            
-            # Copy timing log back to main server
-            cat "timing_${ip}.log" >> /tmp/timing.log
 EOF
         
         pids+=($!)
