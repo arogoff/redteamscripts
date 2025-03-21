@@ -3,6 +3,9 @@
 Author: Me :)
 Made for CSEC-473 Cyber Defense Techniques's Red Team Tool
 
+## Disclaimer
+The tools in this repo should only be used on authorized networks and enviornments. They may cause harm and unauthorized access if used incorrectly. 
+
 ## To set up
 Follow these steps to set up the C2. Ultimately, it should work in any order, but I have tested it this way
 1. Adjust the client script's variable that stores the Server's IP address to the IP address of the linux machine your server is running on.
@@ -88,6 +91,77 @@ Typical execution time is approximately 50 seconds, scaling with the number of t
 
 - Ensure passwords are correctly formatted if they contain special characters like `@`
 - The script handles password updates gracefully after SSH keys are established
+
+# Logbook Persistence w/ cronjob and system timer (deploy_cron_timer.sh)
+
+## Purpose
+This script automatically sets up persistent modifications to the `/root/logbook.txt` file across multiple target machines simultaneously. It utilizes existing SSH infrastructure (setup in the deploy.sh script) to establish redundant persistence mechanisms with randomized names to minimize detection.
+
+## Features
+* **Hidden**: Uses randomly generated names and locations to evade detection
+* **Dual Persistence**: Leverages both systemd timers and cron jobs for redundancy
+* **Existing Authentication**: Uses pre-established SSH keys from previous deployments
+* **Complete Automation**: Deploys to all targets without manual intervention
+* **Minimal Footprint**: Minimizes logs and traces on target systems
+* **Random Naming**: Generates different system-like names for each target machine
+
+## Prerequisites
+* Kali Linux or similar penetration testing environment
+* Existing SSH key at `$HOME/.ssh/id_ed25519` from previous deployment operations
+* Target users must have sudo privileges
+* SSH access to target machines already established
+
+## Configuration
+Edit these variables at the top of the script:
+
+```bash
+# SSH key path (normally from previous deployment)
+SSH_KEY="$HOME/.ssh/id_ed25519"
+SSH_KEY_PUB="$HOME/.ssh/id_ed25519.pub"
+
+# Target machines with SSH access already established
+MACHINES=(
+    "CAgrupnin@10.10.1.2"
+    "CAgrupnin@10.10.1.3"
+    # Add more machines as needed
+)
+```
+
+## How It Works
+1. **Stealth Preparation**:
+   * Generates random system-like names for directories, scripts, and services
+   * Creates hidden directory in `/var/` with randomized name
+   * Installs persistence script with generic "System Performance Monitor" descriptions
+2. **Dual Persistence Setup**:
+   * Configures systemd timer to run every minute
+   * Establishes backup cron job also running every minute
+   * Executes script immediately to establish initial control
+   * Clears command history to remove evidence
+
+## Usage
+
+```bash
+# Make executable
+chmod +x stealth_deploy.sh
+
+# Run deployment
+./stealth_deploy.sh
+```
+
+## Monitoring
+The script provides confirmation of deployment success with the randomly generated names used for each target:
+* Directory path
+* Script name
+* Service name
+
+## Performance
+Typical execution time is approximately 2-3 seconds per target, with all targets being processed sequentially.
+
+## Notes
+* Each target receives completely different random names, making detection and cleanup more difficult
+* The script uses sudo for all operations to ensure it works with any user that has sudo privileges
+* Both persistence mechanisms operate independently, providing redundancy if one is discovered
+* The systems will write "Munsons Maniacs" to `/root/logbook.txt` every minute
 
 ## C2 Client (client.py)
 ### Purpose
