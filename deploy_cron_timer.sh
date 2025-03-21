@@ -116,7 +116,7 @@ EOF
 }
 
 # Main execution
-echo "Starting stealth deployment to all targets using existing SSH keys..."
+echo "Starting deployment to all targets using existing SSH keys..."
 
 for machine in "${MACHINES[@]}"; do
     deploy_to_machine "$machine"
