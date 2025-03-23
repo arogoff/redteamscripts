@@ -87,7 +87,7 @@ After=network.target
 
 [Timer]
 OnBootSec=10sec
-OnUnitActiveSec=1min
+OnUnitActiveSec=30s
 Persistent=true
 
 [Install]
